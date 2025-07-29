@@ -7,3 +7,7 @@ DON'T EXECUTE
 Password: infected
 
 PLEASE EXERCISE EXTREME CAUTION!
+
+
+
+Analysis of the sample can be found in [the report](report.md).
