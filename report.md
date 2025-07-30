@@ -15,6 +15,48 @@ Opening the file in Die [](assets/die_compiler.png), we see that the the program
 
 After a series of initialization (code automatically added by MinGW), an encrypted payload is decrypted. The algorithm used is a stream cipher, derivating 3 keys from an original one, and XORing the source with a calculus made from these 3 keys, `BYTE` by `BYTE`. The key used here is `"UUUUUUUU"`.
 
+```c
+__int64 __fastcall stream_cipher(char *key, int key_length, _BYTE *src, int src_length, _BYTE *dest)
+{
+  __int64 result; // rax
+  int next_key; // [rsp+10h] [rbp-20h]
+  int k; // [rsp+14h] [rbp-1Ch]
+  char XOR_key; // [rsp+1Bh] [rbp-15h]
+  int j; // [rsp+1Ch] [rbp-14h]
+  int i; // [rsp+20h] [rbp-10h]
+  unsigned int key3; // [rsp+24h] [rbp-Ch]
+  unsigned int key1; // [rsp+28h] [rbp-8h]
+  unsigned int key0; // [rsp+2Ch] [rbp-4h]
+
+  key0 = 0;
+  key1 = 0;
+  key3 = 0;
+  for ( i = 0; i <= 63; ++i )                   // iterates 64 times to generates 3 keys derivated from original one
+  {
+    key0 = (2 * key0) | ((unsigned __int8)((key1 >> 21) ^ (key0 >> 18) ^ ((int)(unsigned __int8)key[i % key_length] >> (i / 8))) ^ (unsigned __int8)(key3 >> 22)) & 1;
+    key1 = (2 * key1) | (key0 >> 8) & 1;
+    key3 = (2 * key3) | (key1 >> 10) & 1;
+  }
+  for ( j = 0; ; ++j )
+  {
+    result = (unsigned int)j;
+    if ( j >= src_length )
+      break;
+    next_key = (((key1 >> 10) ^ (unsigned __int8)(key3 >> 10)) & BYTE1(key0) ^ (key1 >> 10) & (unsigned __int8)(key3 >> 10)) & 1;
+    XOR_key = 0;
+    for ( k = 0; k <= 7; ++k )
+    {
+      XOR_key |= ((((key1 >> 21) ^ (unsigned __int8)(key3 >> 22)) & (unsigned __int8)(key0 >> 18) ^ (key1 >> 21) & (unsigned __int8)(key3 >> 22)) & 1 ^ next_key) << k;
+      key0 = (2 * key0) | (((key1 >> 21) ^ (unsigned __int8)(key3 >> 22)) & (unsigned __int8)(key0 >> 18) ^ (key1 >> 21) & (unsigned __int8)(key3 >> 22)) & 1 ^ next_key;
+      key1 = (2 * key1) | (key0 >> 8) & 1;
+      key3 = (2 * key3) | (key1 >> 10) & 1;
+    }
+    dest[j] = XOR_key ^ src[j];
+  }
+  return result;
+}
+```
+
 The encrypted data is as follows:
 
 ```
