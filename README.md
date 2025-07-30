@@ -8,6 +8,9 @@ Password: infected
 
 PLEASE EXERCISE EXTREME CAUTION!
 
+## Report
+
+The purpose of this malware is to **decrypt an embedded payload** using a custom stream cipher (with "UUUUUUUU" as the key), and then **inject and execute this payload as a remote thread** into a process launched by explorer.exe by dynamically loading necessary functions (`VirtualAllocEx`, `WriteProcessMemory`, `CreateRemoteThread`) at runtime to evade detection.
 
 
-Analysis of the sample can be found in [the report](report.md).
+More details are given in [the report](report.md).
