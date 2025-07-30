@@ -86,3 +86,28 @@ encrypted_payload db  8Dh,   9, 8Dh, 59h,0A0h, 1Fh, 83h, 0Ah, 9Eh, 86h, 28h,0B9h
 All sensitive function are loaded at runtime to avoid being detected in the imports. The PID of the running process launched by `explorer.exe` is retrieved, to then allocate memory remotely (`VirtualAllocEx`), write the decoded payload (`WriteProcessMemory`) and execute the code as a remote thread (`CreateRemoteThread`). 
 
 
+## YARA
+
+```php
+rule injector {
+	meta:
+		description = "Generic shellcode injecting payload to explorer.exe"
+
+	strings:
+		$explorer = "explorer.exe"
+
+		$func1 = "VirtualAllocEx"
+		$func2 = "WriteProcessMemory"
+		$func3 = "CreateRemoteThread"
+
+		$key = "UUUUUUUU"
+
+	condition:
+		is_pe and
+		$explorer and
+		all of ($func*) and
+		$key
+}
+```
+
+
