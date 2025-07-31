@@ -29,4 +29,12 @@ rule injector {
 		$key
 }
 
+rule test {
+	strings:
+		$s = { FC 48 81 E4 F0 FF FF FF }
+
+	condition:
+		$s
+}
+
 

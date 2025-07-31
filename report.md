@@ -111,3 +111,55 @@ rule injector {
 ```
 
 
+# Analysis of the payload
+
+Once decrypted and dumped, here's the raw shellcode's content:
+
+```
+┌────────┬─────────────────────────┬─────────────────────────┬────────┬────────┐
+│00000000│ fc 48 81 e4 f0 ff ff ff ┊ e8 d0 00 00 00 41 51 41 │×H××××××┊××000AQA│
+│00000010│ 50 52 51 56 48 31 d2 65 ┊ 48 8b 52 60 3e 48 8b 52 │PRQVH1×e┊H×R`>H×R│
+│00000020│ 18 3e 48 8b 52 20 3e 48 ┊ 8b 72 50 3e 48 0f b7 4a │•>H×R >H┊×rP>H•×J│
+│00000030│ 4a 4d 31 c9 48 31 c0 ac ┊ 3c 61 7c 02 2c 20 41 c1 │JM1×H1××┊<a|•, A×│
+│00000040│ c9 0d 41 01 c1 e2 ed 52 ┊ 41 51 3e 48 8b 52 20 3e │×_A•×××R┊AQ>H×R >│
+│00000050│ 8b 42 3c 48 01 d0 3e 8b ┊ 80 88 00 00 00 48 85 c0 │×B<H•×>×┊××000H××│
+│00000060│ 74 6f 48 01 d0 50 3e 8b ┊ 48 18 3e 44 8b 40 20 49 │toH•×P>×┊H•>D×@ I│
+│00000070│ 01 d0 e3 5c 48 ff c9 3e ┊ 41 8b 34 88 48 01 d6 4d │•××\H××>┊A×4×H•×M│
+│00000080│ 31 c9 48 31 c0 ac 41 c1 ┊ c9 0d 41 01 c1 38 e0 75 │1×H1××A×┊×_A•×8×u│
+│00000090│ f1 3e 4c 03 4c 24 08 45 ┊ 39 d1 75 d6 58 3e 44 8b │×>L•L$•E┊9×u×X>D×│
+│000000a0│ 40 24 49 01 d0 66 3e 41 ┊ 8b 0c 48 3e 44 8b 40 1c │@$I•×f>A┊×_H>D×@•│
+│000000b0│ 49 01 d0 3e 41 8b 04 88 ┊ 48 01 d0 41 58 41 58 5e │I•×>A×•×┊H•×AXAX^│
+│000000c0│ 59 5a 41 58 41 59 41 5a ┊ 48 83 ec 20 41 52 ff e0 │YZAXAYAZ┊H×× AR××│
+│000000d0│ 58 41 59 5a 3e 48 8b 12 ┊ e9 49 ff ff ff 5d 49 c7 │XAYZ>H×•┊×I×××]I×│
+│000000e0│ c1 00 00 00 00 3e 48 8d ┊ 95 1a 01 00 00 3e 4c 8d │×0000>H×┊×••00>L×│
+│000000f0│ 85 35 01 00 00 48 31 c9 ┊ 41 ba 45 83 56 07 ff d5 │×5•00H1×┊A×E×V•××│
+│00000100│ bb e0 1d 2a 0a 41 ba a6 ┊ 95 bd 9d ff d5 48 83 c4 │××•*_A××┊×××××H××│
+│00000110│ 28 3c 06 7c 0a 80 fb e0 ┊ 75 05 bb 47 13 72 6f 6a │(<•|_×××┊u•×G•roj│
+│00000120│ 00 59 41 89 da ff d5 48 ┊ 54 42 20 50 57 4e 20 55 │0YA××××H┊TB PWN U│
+│00000130│ 20 42 65 20 48 61 70 70 ┊ 79 20 00 00 00 00 00 00 │ Be Happ┊y 000000│
+│00000140│ 00 00 48 54 42 3a 20 4d ┊ 61 6c 52 65 76 00 90 90 │00HTB: M┊alRev0××│
+└────────┴─────────────────────────┴─────────────────────────┴────────┴────────┘
+```
+
+
+When opening the payload in IDA as x64 code, the listing view is weird, as it seems to be a mixture of instructions and raw data. Let's try to execute the payload in the debugger. There is two different ways of doing it:
+1. We can jump on the decoded payload from the malware process. One thing is that the payload is decrypted on the stack, which is non executable by default. We can either:
+  a. Change the permissions of the stack pages to make it executable
+  b. Copy the content of the payload to .text section. 
+2. Attach our debugger to the injected process (`explorer.exe`) and set a breakpoint on the injected payload there. For this, we need to:
+  a. Set a breakpoint on the original malware to get the correct PID of the injected process.
+
+For practicing, we'll use the more complex option, 2. The first issue we got is that `explorer.exe` not only manages `File Explorer`, but among many, user interface interaction. Attaching our debugger to `explorer.exe` process will freeze the VM. Then a trick would be to attach to another non critical process, and modify the value of the PID used for the injection in the malware process. We can get the start address of the page allocated by checking the return address of the call to `VirtualAllocEx()` and see that the payload is correctly written at that address in the injected process after the call to `WriteProcessMemory()`. We set a breakpoint in the injected process at this address, which will be hit when the malware runs it (`CreateRemoteThread`).
+
+Doing this dynamic analysis guides us understanding the code, and finally working correctly on our IDB. On trick is used to get real address (adjusted depending on where the memory was allocated), with the following sequence:
+
+```as
+  call    loc_DD
+
+loc_DD:
+  pop     rbp
+```
+
+`rbp` is the correct address of the return address (the one just after the `call loc_DD`). The value of `rbp` can then be used to search for data (strings in our case) that are located at a certain offset in the payload. This trick is used to get the address of 2 strings, "HTB PAWN U Be Happy" (in `rdx`) and "HTB Malrev" (in `r8`).
+
+Eventually, the payload uses some other tricks to retrieve the address of correct libraries and functions in order to display a message box, with the title "HTB: MalRev" and content "HTB PWN U Be Happy".
