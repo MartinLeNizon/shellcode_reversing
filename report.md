@@ -88,6 +88,8 @@ All sensitive function are loaded at runtime to avoid being detected in the impo
 
 ## YARA
 
+The following YARA rules helps identifying this malware, which decrypts a payload using a specific key, and injects itself into `explorer.exe` process.
+
 ```php
 rule injector {
 	meta:
@@ -145,9 +147,19 @@ Once decrypted and dumped, here's the raw shellcode's content:
 When opening the payload in IDA as x64 code, the listing view is weird, as it seems to be a mixture of instructions and raw data. Let's try to execute the payload in the debugger. There is two different ways of doing it:
 1. We can jump on the decoded payload from the malware process. One thing is that the payload is decrypted on the stack, which is non executable by default. We can either:
   a. Change the permissions of the stack pages to make it executable
-  b. Copy the content of the payload to .text section. 
+
+  ![](assets/executable_stack.png)
+
+  b. Copy the content of the payload to .text section.
+
+  ![](assets/patched_exec_payload.png)
+
 2. Attach our debugger to the injected process (`explorer.exe`) and set a breakpoint on the injected payload there. For this, we need to:
   a. Set a breakpoint on the original malware to get the correct PID of the injected process.
+
+  ![](assets/ret_address_pid.png)
+  
+  ![](assets/payload_bp.png)
 
 For practicing, we'll use the more complex option, 2. The first issue we got is that `explorer.exe` not only manages `File Explorer`, but among many, user interface interaction. Attaching our debugger to `explorer.exe` process will freeze the VM. Then a trick would be to attach to another non critical process, and modify the value of the PID used for the injection in the malware process. We can get the start address of the page allocated by checking the return address of the call to `VirtualAllocEx()` and see that the payload is correctly written at that address in the injected process after the call to `WriteProcessMemory()`. We set a breakpoint in the injected process at this address, which will be hit when the malware runs it (`CreateRemoteThread`).
 
